@@ -8,10 +8,9 @@
 
 (ns ^{:doc "A caching library for Clojure."
       :author "Fogus"}
-  clojure.core.cache
-  (:require clojure.data.priority-map)
-  (:import (java.lang.ref ReferenceQueue SoftReference)
-           (java.util.concurrent ConcurrentHashMap)))
+    clojure.core.cache
+  (:require clojure.data.priority-map
+            [clojure.core.cache.utils :as utils :refer [milliseconds-now]]))
 
 (set! *warn-on-reflection* true)
 
@@ -269,45 +268,45 @@
 (defcache TTLCacheQ [cache ttl q gen ttl-ms]
   CacheProtocol
   (lookup [this item]
-    (let [ret (lookup this item ::nope)]
-      (when-not (= ::nope ret) ret)))
+          (let [ret (lookup this item ::nope)]
+            (when-not (= ::nope ret) ret)))
   (lookup [this item not-found]
-    (if (has? this item)
-      (get cache item)
-      not-found))
+          (if (has? this item)
+            (get cache item)
+            not-found))
   (has? [_ item]
-    (and (let [[_ t] (get ttl item [0 (- ttl-ms)])]
-           (< (- (System/currentTimeMillis)
-                 t)
-              ttl-ms))
-         (contains? cache item)))
+        (and (let [[_ t] (get ttl item [0 (- ttl-ms)])]
+               (< (- (milliseconds-now)
+                     t)
+                  ttl-ms))
+             (contains? cache item)))
   (hit [this item] this)
   (miss [this item result]
-    (let [now  (System/currentTimeMillis)
-          [kill-old q'] (key-killer-q ttl q ttl-ms now)]
-      (TTLCacheQ. (assoc (kill-old cache) item result)
-                  (assoc (kill-old ttl) item [gen now])
-                  (conj q' [item gen now])
-                  (unchecked-inc gen)
-                  ttl-ms)))
+        (let [now  (milliseconds-now)
+              [kill-old q'] (key-killer-q ttl q ttl-ms now)]
+          (TTLCacheQ. (assoc (kill-old cache) item result)
+                      (assoc (kill-old ttl) item [gen now])
+                      (conj q' [item gen now])
+                      (unchecked-inc gen)
+                      ttl-ms)))
   (seed [_ base]
-    (let [now (System/currentTimeMillis)]
-      (TTLCacheQ. base
-                  ;; we seed the cache all at gen, but subsequent entries
-                  ;; will get gen+1, gen+2 etc
-                  (into {} (for [x base] [(key x) [gen now]]))
-                  (into q  (for [x base] [(key x) gen now]))
-                  (unchecked-inc gen)
-                  ttl-ms)))
+        (let [now (milliseconds-now)]
+          (TTLCacheQ. base
+                      ;; we seed the cache all at gen, but subsequent entries
+                      ;; will get gen+1, gen+2 etc
+                      (into {} (for [x base] [(key x) [gen now]]))
+                      (into q  (for [x base] [(key x) gen now]))
+                      (unchecked-inc gen)
+                      ttl-ms)))
   (evict [_ key]
-    (TTLCacheQ. (dissoc cache key)
-                (dissoc ttl key)
-                q
-                gen
-                ttl-ms))
+         (TTLCacheQ. (dissoc cache key)
+                     (dissoc ttl key)
+                     q
+                     gen
+                     ttl-ms))
   Object
   (toString [_]
-    (str cache \, \space ttl \, \space ttl-ms)))
+            (str cache \, \space ttl \, \space ttl-ms)))
 
 
 (defcache LUCache [cache lu limit]
@@ -434,144 +433,74 @@
 (defcache LIRSCache [cache lruS lruQ tick limitS limitQ]
   CacheProtocol
   (lookup [_ item]
-    (get cache item))
+          (get cache item))
   (lookup [_ item not-found]
-    (get cache item not-found))
+          (get cache item not-found))
   (has? [_ item]
-    (contains? cache item))
+        (contains? cache item))
   (hit [_ item]
-    (let [tick+ (inc tick)]
-      (if (not (contains? lruS item))
+       (let [tick+ (inc tick)]
+         (if (not (contains? lruS item))
                                         ; (2.3) item ∉ S ∧ item ∈ Q
-        (LIRSCache. cache (assoc lruS item tick+) (assoc lruQ item tick+) tick+ limitS limitQ)
-        (let [k (apply min-key lruS (keys lruS))]
-          (if (contains? lruQ item)
+           (LIRSCache. cache (assoc lruS item tick+) (assoc lruQ item tick+) tick+ limitS limitQ)
+           (let [k (apply min-key lruS (keys lruS))]
+             (if (contains? lruQ item)
                                         ; (2.2) item ∈ S ∧ item ∈ Q
-            (let [new-lruQ (-> lruQ (dissoc item) (assoc k tick+))]
-              (LIRSCache. cache
-                          (-> lruS (dissoc k) (assoc item tick+) (prune-stack new-lruQ cache))
-                          new-lruQ
-                          tick+
-                          limitS
-                          limitQ))
+               (let [new-lruQ (-> lruQ (dissoc item) (assoc k tick+))]
+                 (LIRSCache. cache
+                             (-> lruS (dissoc k) (assoc item tick+) (prune-stack new-lruQ cache))
+                             new-lruQ
+                             tick+
+                             limitS
+                             limitQ))
                                         ; (2.1) item ∈ S ∧ item ∉ Q
-            (LIRSCache. cache
-                        (-> lruS (assoc item tick+) (prune-stack lruQ cache))
-                        lruQ
-                        tick+
-                        limitS
-                        limitQ))))))
+               (LIRSCache. cache
+                           (-> lruS (assoc item tick+) (prune-stack lruQ cache))
+                           lruQ
+                           tick+
+                           limitS
+                           limitQ))))))
 
   (miss [_ item result]
-    (let [tick+ (inc tick)]
-      (if (< (count cache) limitS)
+        (let [tick+ (inc tick)]
+          (if (< (count cache) limitS)
                                         ; (1.1)
-        (let [k (apply min-key lruS (keys lruS))]
-          (LIRSCache. (assoc cache item result)
-                      (-> lruS (dissoc k) (assoc item tick+))
-                      lruQ
-                      tick+
-                      limitS
-                      limitQ))
-        (let [k (apply min-key lruQ (keys lruQ))
-              new-lruQ (dissoc lruQ k)
-              new-cache (-> cache  (dissoc k) (assoc item result))]
-          (if (contains? lruS item)
-                                        ; (1.3)
-            (let [lastS (apply min-key lruS (keys lruS))]
-              (LIRSCache. new-cache
-                          (-> lruS (dissoc lastS) (assoc item tick+) (prune-stack new-lruQ new-cache))
-                          (assoc new-lruQ lastS tick+)
+            (let [k (apply min-key lruS (keys lruS))]
+              (LIRSCache. (assoc cache item result)
+                          (-> lruS (dissoc k) (assoc item tick+))
+                          lruQ
                           tick+
                           limitS
                           limitQ))
+            (let [k (apply min-key lruQ (keys lruQ))
+                  new-lruQ (dissoc lruQ k)
+                  new-cache (-> cache  (dissoc k) (assoc item result))]
+              (if (contains? lruS item)
+                                        ; (1.3)
+                (let [lastS (apply min-key lruS (keys lruS))]
+                  (LIRSCache. new-cache
+                              (-> lruS (dissoc lastS) (assoc item tick+) (prune-stack new-lruQ new-cache))
+                              (assoc new-lruQ lastS tick+)
+                              tick+
+                              limitS
+                              limitQ))
                                         ; (1.2)
-            (LIRSCache. new-cache
-                        (assoc lruS item tick+)
-                        (assoc new-lruQ item tick+)
-                        tick+
-                        limitS
-                        limitQ))))))
+                (LIRSCache. new-cache
+                            (assoc lruS item tick+)
+                            (assoc new-lruQ item tick+)
+                            tick+
+                            limitS
+                            limitQ))))))
   (seed [_ base]
-    (LIRSCache. base
-                (into {} (for [x (range (- limitS) 0)] [x x]))
-                (into {} (for [x (range (- limitQ) 0)] [x x]))
-                0
-                limitS
-                limitQ))
+        (LIRSCache. base
+                    (into {} (for [x (range (- limitS) 0)] [x x]))
+                    (into {} (for [x (range (- limitQ) 0)] [x x]))
+                    0
+                    limitS
+                    limitQ))
   Object
   (toString [_]
-    (str cache \, \space lruS \, \space lruQ \, \space tick \, \space limitS \, \space limitQ)))
-
-(defn clear-soft-cache! [^java.util.Map cache ^java.util.Map rcache ^ReferenceQueue rq]
-  (loop [r (.poll rq)]
-    (when r
-      (when-let [item (get rcache r)]
-        (.remove cache item))
-      (.remove rcache r)
-      (recur (.poll rq)))))
-
-(defn make-reference [v rq]
-  (if (nil? v)
-    (SoftReference. ::nil rq)
-    (SoftReference. v rq)))
-
-(defcache SoftCache [^java.util.Map cache ^java.util.Map rcache rq]
-  CacheProtocol
-  (lookup [_ item]
-    (when-let [^SoftReference r (get cache (or item ::nil))]
-      (let [v (.get r)]
-        (if (= ::nil v)
-          nil
-          v))))
-  (lookup [_ item not-found]
-    (if-let [^SoftReference r (get cache (or item ::nil))]
-      (if-let [v (.get r)]
-        (if (= ::nil v)
-          nil
-          v)
-        not-found)
-      not-found))
-  (has? [_ item]
-    (let [item (or item ::nil)
-          ^SoftReference cell (get cache item)]
-      (boolean
-        (when cell
-          (not (nil? (.get cell)))))))
-  (hit [this item]
-    (clear-soft-cache! cache rcache rq)
-    this)
-  (miss [this item result]
-    (let [item (or item ::nil)
-          r (make-reference result rq)]
-      (.put cache item r)
-      (.put rcache r item)
-      (clear-soft-cache! cache rcache rq)
-      this))
-  (evict [this key]
-    (let [key (or key ::nil)
-          r (get cache key)]
-      (when r
-        (.remove cache key)
-        (.remove rcache r))
-      (clear-soft-cache! cache rcache rq)
-      this))
-  (seed [_ base]
-    (let [soft-cache? (instance? SoftCache base)
-          cache (ConcurrentHashMap.)
-          rcache (ConcurrentHashMap.)
-          rq (ReferenceQueue.)]
-      (if (seq base)
-        (doseq [[k ^SoftReference v] base]
-          (let [k (or k ::nil)
-                r (if soft-cache?
-                    (make-reference (.get v) rq)
-                    (make-reference v rq))]
-            (.put cache k r)
-            (.put rcache r k))))
-      (SoftCache. cache rcache rq)))
-  Object
-  (toString [_] (str cache)))
+            (str cache \, \space lruS \, \space lruQ \, \space tick \, \space limitS \, \space limitQ)))
 
 ;; Factories
 
@@ -653,6 +582,6 @@
   SoftCache is a mutable cache, since it is always based on a
   ConcurrentHashMap."
   [base]
-  {:pre [(map? base)]}
-  (clojure.core.cache/seed (SoftCache. (ConcurrentHashMap.) (ConcurrentHashMap.) (ReferenceQueue.))
-        base))
+  (throw
+   (RuntimeException.
+    "This is not supported in this version of Clojure Cache due to cross platform compatability issues.")))
