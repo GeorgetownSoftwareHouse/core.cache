@@ -573,15 +573,3 @@
          (number? q-history-limit) (< 0 q-history-limit)
          (map? base)]}
   (clojure.core.cache/seed (LIRSCache. {} {} {} 0 s-history-limit q-history-limit) base))
-
-(defn soft-cache-factory
-  "Returns a SoftReference cache.  Cached values will be referred to with
-  SoftReferences, allowing the values to be garbage collected when there is
-  memory pressure on the JVM.
-
-  SoftCache is a mutable cache, since it is always based on a
-  ConcurrentHashMap."
-  [base]
-  (throw
-   (RuntimeException.
-    "This is not supported in this version of Clojure Cache due to cross platform compatability issues.")))
