@@ -8,9 +8,9 @@
 
 (ns ^{:doc "A caching library for Clojure."
       :author "Fogus"}
-    clojure.core.cache
+    georgetown-software-house.core.cache
   (:require clojure.data.priority-map
-            [clojure.core.cache.utils :as utils :refer [milliseconds-now]]))
+            [georgetown-software-house.core.cache.utils :as utils :refer [milliseconds-now]]))
 
 (set! *warn-on-reflection* true)
 
@@ -49,9 +49,9 @@
   ([cache item] (through default-wrapper-fn identity cache item))
   ([value-fn cache item] (through default-wrapper-fn value-fn cache item))
   ([wrap-fn value-fn cache item]
-   (if (clojure.core.cache/has? cache item)
-     (clojure.core.cache/hit cache item)
-     (clojure.core.cache/miss cache item (wrap-fn #(value-fn %) item)))))
+   (if (georgetown-software-house.core.cache/has? cache item)
+     (georgetown-software-house.core.cache/hit cache item)
+     (georgetown-software-house.core.cache/miss cache item (wrap-fn #(value-fn %) item)))))
 
 (defn through-cache
   "The basic hit/miss logic for the cache system.  Like through but always has
@@ -59,9 +59,9 @@
   ([cache item] (through-cache cache item default-wrapper-fn identity))
   ([cache item value-fn] (through-cache cache item default-wrapper-fn value-fn))
   ([cache item wrap-fn value-fn]
-   (if (clojure.core.cache/has? cache item)
-     (clojure.core.cache/hit cache item)
-     (clojure.core.cache/miss cache item (wrap-fn #(value-fn %) item)))))
+   (if (georgetown-software-house.core.cache/has? cache item)
+     (georgetown-software-house.core.cache/hit cache item)
+     (georgetown-software-house.core.cache/miss cache item (wrap-fn #(value-fn %) item)))))
 
 (defmacro defcache
   [type-name fields & specifics]
@@ -529,7 +529,7 @@
   {:pre [(number? threshold) (< 0 threshold)
          (map? base)]
    :post [(== threshold (count (.q ^FIFOCache %)))]}
-  (clojure.core.cache/seed (FIFOCache. {} clojure.lang.PersistentQueue/EMPTY threshold) base))
+  (georgetown-software-house.core.cache/seed (FIFOCache. {} clojure.lang.PersistentQueue/EMPTY threshold) base))
 
 (defn lru-cache-factory
   "Returns an LRU cache with the cache and usage-table initialized to `base` --
@@ -540,7 +540,7 @@
   [base & {threshold :threshold :or {threshold 32}}]
   {:pre [(number? threshold) (< 0 threshold)
          (map? base)]}
-  (clojure.core.cache/seed (LRUCache. {} (clojure.data.priority-map/priority-map) 0 threshold) base))
+  (georgetown-software-house.core.cache/seed (LRUCache. {} (clojure.data.priority-map/priority-map) 0 threshold) base))
 
 (defn ttl-cache-factory
   "Returns a TTL cache with the cache and expiration-table initialized to `base` --
@@ -551,7 +551,7 @@
   [base & {ttl :ttl :or {ttl 2000}}]
   {:pre [(number? ttl) (<= 0 ttl)
          (map? base)]}
-  (clojure.core.cache/seed (TTLCacheQ. {} {} clojure.lang.PersistentQueue/EMPTY 0 ttl) base))
+  (georgetown-software-house.core.cache/seed (TTLCacheQ. {} {} clojure.lang.PersistentQueue/EMPTY 0 ttl) base))
 
 (defn lu-cache-factory
   "Returns an LU cache with the cache and usage-table initialized to `base`.
@@ -561,7 +561,7 @@
   [base & {threshold :threshold :or {threshold 32}}]
   {:pre [(number? threshold) (< 0 threshold)
          (map? base)]}
-  (clojure.core.cache/seed (LUCache. {} (clojure.data.priority-map/priority-map) threshold) base))
+  (georgetown-software-house.core.cache/seed (LUCache. {} (clojure.data.priority-map/priority-map) threshold) base))
 
 (defn lirs-cache-factory
   "Returns an LIRS cache with the S & R LRU lists set to the indicated
@@ -572,4 +572,4 @@
   {:pre [(number? s-history-limit) (< 0 s-history-limit)
          (number? q-history-limit) (< 0 q-history-limit)
          (map? base)]}
-  (clojure.core.cache/seed (LIRSCache. {} {} {} 0 s-history-limit q-history-limit) base))
+  (georgetown-software-house.core.cache/seed (LIRSCache. {} {} {} 0 s-history-limit q-history-limit) base))

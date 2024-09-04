@@ -6,7 +6,7 @@
 ;   the terms of this license.
 ;   You must not remove this notice, or any other, from this software.
 
-(ns clojure.core.cache.wrapped
+(ns georgetown-software-house.core.cache.wrapped
   "A higher level way to use clojure.core.cache that assumes the immutable
   cache is wrapped in an atom.
 
@@ -18,7 +18,7 @@
   In addition, lookup-or-miss provides a safe, atomic way to retrieve a
   value from a cache or compute it if it is missing, without risking a
   cache stampede."
-  (:require [clojure.core.cache :as c]))
+  (:require [georgetown-software-house.core.cache :as c]))
 
 (set! *warn-on-reflection* true)
 
