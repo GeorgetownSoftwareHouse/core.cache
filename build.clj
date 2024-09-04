@@ -1,7 +1,7 @@
 (ns build
   (:require [clojure.tools.build.api :as b]))
 
-(def lib 'georgetown-software-house/clojure.cache)
+(def lib 'georgetown-software-house/georgetown-software-house.cache)
 (def version (format "1.2.%s" (b/git-count-revs nil)))
 (def class-dir "target/classes")
 (def jar-file (format "target/%s-%s.jar" (name lib) version))
