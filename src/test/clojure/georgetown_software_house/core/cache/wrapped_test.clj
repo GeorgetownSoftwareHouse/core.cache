@@ -6,8 +6,8 @@
 ;   the terms of this license.
 ;   You must not remove this notice, or any other, from this software.
 
-(ns clojure.core.cache.wrapped-test
-  (:require [clojure.core.cache.wrapped :as c]
+(ns georgetown-software-house.core.cache.wrapped-test
+  (:require [georgetown-software-house.core.cache.wrapped :as c]
             [clojure.test :refer [deftest is]]))
 
 (deftest basic-wrapped-test
